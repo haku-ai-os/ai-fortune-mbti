@@ -1,0 +1,2508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Palm MBTI Oracle AI | AI手相MBTIオラクル</title>
+  <!--
+    2026-06-22 再発防止メモ:
+    以前の版は「画像の明るさ・エッジ・暖色」をMBTI風スコアへ直接変換していたため、
+    牛丼やスクリーンショットなど手ではない画像も診断し、さらに軸スコアがENFJ側へ偏った。
+    この版では、診断前に簡易の手のひら判定を行い、非手画像を結果画面へ進ませない。
+    また4軸は50点基準の平均との差分で算出し、16タイプへ分散しやすい設計に変更した。
+  -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%238bd3ff'/%3E%3Cstop offset='.55' stop-color='%23c7a7ff'/%3E%3Cstop offset='1' stop-color='%23f4d58d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='30' fill='%2308070d'/%3E%3Cpath d='M32 8c7 7 17 17 17 29 0 10-7 18-17 18s-17-8-17-18C15 25 25 15 32 8Z' fill='url(%23g)'/%3E%3Cpath d='M23 36c5-6 12-6 18 0M25 27c4-3 10-3 14 0' fill='none' stroke='%2308070d' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #08070d;
+      --bg2: #10111a;
+      --panel: rgba(255, 255, 255, 0.065);
+      --panel2: rgba(255, 255, 255, 0.095);
+      --line: rgba(255, 255, 255, 0.14);
+      --line2: rgba(199, 167, 255, 0.34);
+      --text: #f8f5ff;
+      --muted: rgba(248, 245, 255, 0.67);
+      --soft: rgba(248, 245, 255, 0.42);
+      --purple: #c7a7ff;
+      --gold: #f4d58d;
+      --cyan: #8bd3ff;
+      --green: #9ef4c8;
+      --shadow: 0 22px 80px rgba(0, 0, 0, 0.45);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      min-height: 100%;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100%;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(139, 211, 255, 0.16), transparent 32%),
+        radial-gradient(circle at 86% 16%, rgba(199, 167, 255, 0.14), transparent 34%),
+        linear-gradient(145deg, #08070d 0%, #0b0d17 46%, #100d16 100%);
+      overflow-x: hidden;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.52;
+    }
+
+    .app {
+      position: relative;
+      width: min(100%, 760px);
+      margin: 0 auto;
+      padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+      min-height: 100dvh;
+    }
+
+    .ambient {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      opacity: 0.9;
+    }
+
+    .ambient::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, transparent, black 14%, black 82%, transparent);
+    }
+
+    .starfield {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      border-radius: 999px;
+      background: rgba(244, 213, 141, 0.95);
+      box-shadow: 0 0 12px rgba(244, 213, 141, 0.7);
+      animation: drift var(--dur) linear infinite;
+      transform: translateY(0);
+    }
+
+    @keyframes drift {
+      0% { transform: translate3d(0, 0, 0); opacity: 0.15; }
+      35% { opacity: 0.82; }
+      100% { transform: translate3d(var(--dx), 78px, 0); opacity: 0.08; }
+    }
+
+    .shell {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      gap: 16px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .sigil {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background:
+        conic-gradient(from 120deg, rgba(139,211,255,0.95), rgba(199,167,255,0.95), rgba(244,213,141,0.95), rgba(139,211,255,0.95));
+      box-shadow: 0 0 28px rgba(199, 167, 255, 0.32);
+    }
+
+    .sigil::after {
+      content: "";
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(8, 7, 13, 0.9);
+      background: rgba(248, 245, 255, 0.92);
+    }
+
+    .notice-pill {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.045);
+      border-radius: 999px;
+      padding: 8px 11px;
+      white-space: nowrap;
+    }
+
+    .screen {
+      display: none;
+      animation: enter 0.48s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero {
+      min-height: calc(100dvh - 86px);
+      display: grid;
+      align-content: center;
+      gap: 18px;
+      padding: 26px 0 18px;
+    }
+
+    .hero-card,
+    .glass-card,
+    .upload-stage,
+    .result-card,
+    .score-card {
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.095), rgba(255,255,255,0.035)),
+        linear-gradient(180deg, rgba(199,167,255,0.08), rgba(139,211,255,0.025));
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.12);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-xl);
+      padding: 30px 24px;
+    }
+
+    .hero-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(115deg, rgba(199,167,255,0.18), transparent 34%),
+        linear-gradient(295deg, rgba(244,213,141,0.12), transparent 32%);
+      opacity: 0.9;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      position: relative;
+      display: grid;
+      gap: 18px;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 28px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(44px, 11vw, 76px);
+      line-height: 0.88;
+      letter-spacing: 0;
+      max-width: 680px;
+    }
+
+    .title-grad {
+      display: block;
+      background: linear-gradient(110deg, #fff 0%, var(--purple) 45%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 34px rgba(199, 167, 255, 0.16);
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(15px, 3.7vw, 18px);
+      line-height: 1.85;
+      max-width: 620px;
+    }
+
+    .hero-actions,
+    .actions {
+      display: grid;
+      gap: 12px;
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .share-btn {
+      min-height: 54px;
+      border-radius: 18px;
+      padding: 15px 18px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      user-select: none;
+    }
+
+    .primary-btn {
+      color: #100d16;
+      background:
+        linear-gradient(135deg, var(--gold), #ffd6e2 50%, var(--purple));
+      box-shadow: 0 18px 44px rgba(199, 167, 255, 0.24), 0 10px 28px rgba(244, 213, 141, 0.14);
+    }
+
+    .secondary-btn,
+    .share-btn {
+      background: rgba(255,255,255,0.065);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .primary-btn:active,
+    .secondary-btn:active,
+    .share-btn:active {
+      transform: scale(0.985);
+    }
+
+    .tips {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .tip {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.045);
+      padding: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      min-height: 74px;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .disclaimer {
+      border: 1px solid rgba(244, 213, 141, 0.22);
+      background: rgba(244, 213, 141, 0.055);
+      color: rgba(248, 245, 255, 0.76);
+      border-radius: 16px;
+      padding: 13px 14px;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .upload-stage {
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+
+    .stage-head {
+      padding: 20px 18px 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    .screen-title {
+      margin: 0;
+      font-size: clamp(28px, 7vw, 42px);
+      line-height: 1.04;
+    }
+
+    .screen-copy {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .dropzone {
+      margin: 18px;
+      position: relative;
+      border-radius: 24px;
+      border: 1px dashed rgba(199, 167, 255, 0.48);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+      min-height: 310px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    .dropzone.has-image {
+      border-style: solid;
+      border-color: rgba(139, 211, 255, 0.34);
+    }
+
+    .empty-upload {
+      padding: 24px;
+      text-align: center;
+      display: grid;
+      gap: 13px;
+      justify-items: center;
+    }
+
+    .hand-icon {
+      width: 92px;
+      height: 112px;
+      border-radius: 38px 38px 44px 44px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background:
+        radial-gradient(circle at 50% 38%, rgba(248,245,255,0.22), transparent 34%),
+        linear-gradient(145deg, rgba(199,167,255,0.26), rgba(139,211,255,0.08));
+      position: relative;
+      box-shadow: inset 0 0 22px rgba(255,255,255,0.07), 0 0 40px rgba(199,167,255,0.18);
+    }
+
+    .hand-icon::before,
+    .hand-icon::after {
+      content: "";
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(244,213,141,0.9), transparent);
+      transform: rotate(-12deg);
+    }
+
+    .hand-icon::before { top: 43px; }
+    .hand-icon::after { top: 66px; transform: rotate(14deg); }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .preview-wrap {
+      position: absolute;
+      inset: 0;
+      display: none;
+      background: #05050a;
+    }
+
+    .dropzone.has-image .preview-wrap {
+      display: block;
+    }
+
+    #previewCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    .scan-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 100% 5px;
+      mix-blend-mode: screen;
+    }
+
+    .dropzone.has-image .scan-overlay,
+    .analyzing .scan-overlay {
+      display: block;
+    }
+
+    .scan-overlay::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 78px;
+      background: linear-gradient(180deg, transparent, rgba(139,211,255,0.48), transparent);
+      filter: blur(1px);
+      animation: scan 2.2s ease-in-out infinite;
+    }
+
+    @keyframes scan {
+      0%, 100% { transform: translateY(-90px); }
+      50% { transform: translateY(calc(100% + 20px)); }
+    }
+
+    .upload-controls {
+      padding: 0 18px 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .status {
+      min-height: 22px;
+      margin: 0 18px 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .analysis-wrap {
+      min-height: calc(100dvh - 86px);
+      display: grid;
+      place-items: center;
+      padding: 30px 0;
+    }
+
+    .analysis-card {
+      width: 100%;
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      border: 1px solid var(--line2);
+      background:
+        linear-gradient(145deg, rgba(199,167,255,0.12), rgba(139,211,255,0.045)),
+        rgba(255,255,255,0.045);
+      box-shadow: var(--shadow);
+    }
+
+    .analysis-preview {
+      position: relative;
+      height: min(60vh, 470px);
+      border-radius: 24px;
+      overflow: hidden;
+      background: #05050a;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    #analysisCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    .analysis-text {
+      margin-top: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .analysis-text h2 {
+      margin: 0;
+      font-size: clamp(25px, 6vw, 38px);
+      line-height: 1.1;
+    }
+
+    .progress {
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), var(--purple), var(--gold));
+      box-shadow: 0 0 26px rgba(139, 211, 255, 0.42);
+      transition: width 0.22s ease;
+    }
+
+    .result-hero {
+      display: grid;
+      gap: 16px;
+      padding: 16px 0 24px;
+    }
+
+    .result-card {
+      position: relative;
+      border-radius: var(--radius-xl);
+      padding: 22px;
+      overflow: hidden;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.035)),
+        radial-gradient(circle at 82% 16%, rgba(244,213,141,0.18), transparent 30%),
+        radial-gradient(circle at 12% 0%, rgba(139,211,255,0.16), transparent 34%);
+      box-shadow:
+        0 32px 95px rgba(0, 0, 0, 0.58),
+        0 0 0 1px rgba(255,255,255,0.11),
+        inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+
+    .result-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(125deg, rgba(244,213,141,0.16), transparent 30%),
+        linear-gradient(305deg, rgba(139,211,255,0.13), transparent 34%);
+      pointer-events: none;
+    }
+
+    .result-card > * {
+      position: relative;
+    }
+
+    .result-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 168px;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .type-copy {
+      min-width: 0;
+    }
+
+    .type-label {
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .type-name {
+      margin: 0;
+      font-size: clamp(42px, 11vw, 78px);
+      line-height: 1;
+      letter-spacing: 0;
+      text-shadow: 0 8px 38px rgba(255,255,255,0.13);
+    }
+
+    .type-summary {
+      margin: 16px 0 0;
+      color: var(--muted);
+      line-height: 1.9;
+      font-size: 15px;
+    }
+
+    .type-avatar {
+      --avatar-a: #c7a7ff;
+      --avatar-b: #8bd3ff;
+      --avatar-c: #f4d58d;
+      position: relative;
+      width: 158px;
+      aspect-ratio: 0.78;
+      justify-self: end;
+      display: grid;
+      place-items: center;
+      filter: drop-shadow(0 24px 34px rgba(0,0,0,0.42));
+      transform: perspective(600px) rotateY(-10deg) rotateX(4deg);
+    }
+
+    .type-avatar::before {
+      content: "";
+      position: absolute;
+      inset: 7% 2% 0;
+      border-radius: 36% 36% 44% 44%;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(255,255,255,0.95) 0 9%, transparent 10%),
+        linear-gradient(145deg, var(--avatar-a), var(--avatar-b) 58%, var(--avatar-c));
+      clip-path: polygon(48% 0, 75% 15%, 82% 43%, 96% 70%, 72% 78%, 66% 100%, 35% 100%, 29% 77%, 5% 69%, 18% 43%, 24% 15%);
+      box-shadow:
+        inset 16px 12px 22px rgba(255,255,255,0.18),
+        inset -16px -18px 28px rgba(0,0,0,0.22),
+        0 0 38px color-mix(in srgb, var(--avatar-a), transparent 54%);
+    }
+
+    .type-avatar::after {
+      content: attr(data-code);
+      position: absolute;
+      left: 50%;
+      bottom: 7%;
+      transform: translateX(-50%);
+      border: 1px solid rgba(255,255,255,0.24);
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      background: rgba(7, 8, 15, 0.62);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+    }
+
+    .avatar-face,
+    .avatar-core,
+    .avatar-spark {
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .avatar-face {
+      top: 19%;
+      left: 50%;
+      width: 54px;
+      height: 46px;
+      transform: translateX(-50%);
+      border-radius: 50% 50% 44% 44%;
+      background: linear-gradient(145deg, #fff4df, #d8ad90);
+      box-shadow: inset -8px -8px 12px rgba(95,45,60,0.22);
+    }
+
+    .avatar-face::before,
+    .avatar-face::after {
+      content: "";
+      position: absolute;
+      top: 19px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(12, 14, 24, 0.85);
+    }
+
+    .avatar-face::before { left: 15px; }
+    .avatar-face::after { right: 15px; }
+
+    .avatar-core {
+      top: 45%;
+      left: 50%;
+      width: 58px;
+      height: 72px;
+      transform: translateX(-50%);
+      border-radius: 15px 15px 28px 28px;
+      background:
+        linear-gradient(140deg, rgba(255,255,255,0.28), transparent 32%),
+        linear-gradient(180deg, var(--avatar-b), var(--avatar-a));
+      box-shadow: inset -10px -12px 18px rgba(0,0,0,0.2);
+    }
+
+    .avatar-spark {
+      top: 10%;
+      right: 8%;
+      width: 28px;
+      height: 28px;
+      background: var(--avatar-c);
+      clip-path: polygon(50% 0, 62% 36%, 100% 50%, 62% 64%, 50% 100%, 38% 64%, 0 50%, 38% 36%);
+      box-shadow: 0 0 24px var(--avatar-c);
+    }
+
+    .mini-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .metric {
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 15px;
+      padding: 11px;
+      background: rgba(255,255,255,0.045);
+    }
+
+    .metric b {
+      display: block;
+      font-size: 20px;
+      color: var(--text);
+      line-height: 1.15;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+      display: block;
+      margin-top: 5px;
+    }
+
+    .section-title {
+      margin: 8px 0 0;
+      color: var(--text);
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .cards {
+      display: grid;
+      gap: 12px;
+    }
+
+    .oracle-card {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.055);
+      padding: 16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .oracle-card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .oracle-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.78;
+      font-size: 14px;
+    }
+
+    .score-grid {
+      display: grid;
+      gap: 11px;
+    }
+
+    .score-card {
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .score-name {
+      font-weight: 900;
+      letter-spacing: 0.02em;
+    }
+
+    .score-value {
+      color: var(--gold);
+      font-weight: 950;
+      font-size: 20px;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), var(--purple), var(--gold));
+      transition: width 1s cubic-bezier(.2,.9,.2,1);
+    }
+
+    .reading-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .line-reading {
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.045);
+      padding: 14px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .line-reading strong {
+      color: var(--cyan);
+      font-size: 14px;
+    }
+
+    .line-reading span {
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .combo-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .combo-item {
+      border-left: 3px solid var(--purple);
+      padding: 12px 13px;
+      border-radius: 0 16px 16px 0;
+      background: rgba(199,167,255,0.07);
+      color: var(--muted);
+      line-height: 1.72;
+      font-size: 14px;
+    }
+
+    .compat-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .compat-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 18px;
+      padding: 14px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.028)),
+        radial-gradient(circle at 90% 20%, rgba(244,213,141,0.16), transparent 28%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.09);
+    }
+
+    .compat-rank {
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .compat-type {
+      margin-top: 5px;
+      font-size: 24px;
+      font-weight: 950;
+      color: var(--text);
+    }
+
+    .compat-card p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      line-height: 1.68;
+      font-size: 13px;
+    }
+
+    .combo-item b {
+      color: var(--text);
+    }
+
+    .result-actions {
+      display: grid;
+      gap: 12px;
+      padding-bottom: 8px;
+    }
+
+    footer {
+      color: var(--soft);
+      text-align: center;
+      font-size: 12px;
+      padding: 18px 0 4px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(18px);
+      z-index: 20;
+      opacity: 0;
+      pointer-events: none;
+      width: min(calc(100% - 32px), 520px);
+      border: 1px solid rgba(244, 213, 141, 0.3);
+      background: rgba(16, 14, 24, 0.94);
+      color: var(--text);
+      border-radius: 18px;
+      padding: 13px 15px;
+      box-shadow: var(--shadow);
+      transition: opacity 0.24s ease, transform 0.24s ease;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (min-width: 650px) {
+      .hero-actions,
+      .actions,
+      .result-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .result-actions .primary-btn {
+        grid-column: span 2;
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .cards .oracle-card:first-child {
+        grid-column: span 2;
+      }
+
+      .score-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .reading-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 440px) {
+      .app {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .topbar {
+        font-size: 10px;
+      }
+
+      .notice-pill {
+        padding: 7px 9px;
+      }
+
+      .hero-card {
+        padding: 24px 18px;
+      }
+
+      .tips {
+        grid-template-columns: 1fr;
+      }
+
+      .upload-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .mini-metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .result-top {
+        grid-template-columns: minmax(0, 1fr) 118px;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .type-avatar {
+        width: 116px;
+        margin-top: 8px;
+      }
+
+      .type-summary {
+        font-size: 14px;
+        line-height: 1.8;
+      }
+
+      .dropzone {
+        min-height: 280px;
+        margin: 14px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <div class="starfield" id="starfield" aria-hidden="true"></div>
+
+  <main class="app">
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand-mark"><span class="sigil" aria-hidden="true"></span><span>Palm MBTI Oracle AI</span></div>
+        <div class="notice-pill">Private MBTI-style Reading</div>
+      </header>
+
+      <section class="screen active" id="startScreen">
+        <div class="hero">
+          <div class="hero-card">
+            <div class="hero-inner">
+              <div class="eyebrow">AI手相MBTIオラクル</div>
+              <h1><span class="title-grad">Palm MBTI</span><span>Oracle</span></h1>
+              <p class="lead">手のひら写真から、E/I・N/S・F/T・J/P の4つの傾向をAI風に読み解き、あなたのMBTI風タイプ、性格、人間関係、恋愛傾向、今週のラッキーアクションを導きます。</p>
+              <div class="hero-actions">
+                <button class="primary-btn" type="button" id="pickFromHero">手の写真を選ぶ</button>
+                <button class="secondary-btn" type="button" id="howToBtn">撮影のコツを見る</button>
+              </div>
+              <div class="tips" id="tips">
+                <div class="tip"><strong>明るい場所</strong>影が少ない場所で、手のひら全体を写してください。</div>
+                <div class="tip"><strong>手の向き</strong>左手・右手どちらでもOK。指先から手首まで入れると綺麗です。</div>
+                <div class="tip"><strong>背景</strong>無地に近い背景だと、AI風スキャン演出が映えます。</div>
+                <div class="tip"><strong>プライバシー</strong>画像は端末内だけで処理され、外部には送信されません。</div>
+              </div>
+              <p class="disclaimer">※この診断はエンタメ目的のMBTI風オラクルです。公式MBTI診断、医学的・科学的な診断ではありません。画像は端末内で処理され、外部には送信されません。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="uploadScreen">
+        <div class="upload-stage">
+          <div class="stage-head">
+            <p class="eyebrow">Step 01 / Upload</p>
+              <h2 class="screen-title">手のひらを選んでください</h2>
+              <p class="screen-copy">写真を選ぶと、その場でプレビューします。解析はすべてブラウザ内で完結し、MBTI風の16タイプ結果へ変換します。</p>
+          </div>
+
+          <input class="file-input" id="fileInput" type="file" accept="image/*" />
+          <div class="dropzone" id="dropzone">
+            <div class="empty-upload">
+              <div class="hand-icon" aria-hidden="true"></div>
+              <button class="primary-btn" type="button" id="pickImageBtn">写真を選ぶ</button>
+              <p class="screen-copy">iPhone / Android ではカメラまたは写真フォルダから選べます。</p>
+            </div>
+            <div class="preview-wrap">
+              <canvas id="previewCanvas"></canvas>
+              <div class="scan-overlay" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <p class="status" id="uploadStatus">まだ画像は選択されていません。</p>
+          <div class="upload-controls">
+            <button class="secondary-btn" type="button" id="repickBtn">写真を選び直す</button>
+            <button class="primary-btn" type="button" id="analyzeBtn" disabled>この写真で占う</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="analysisScreen">
+        <div class="analysis-wrap">
+          <div class="analysis-card">
+            <div class="analysis-preview analyzing">
+              <canvas id="analysisCanvas"></canvas>
+              <div class="scan-overlay" aria-hidden="true"></div>
+            </div>
+            <div class="analysis-text">
+              <p class="eyebrow">Step 02 / Oracle Scan</p>
+              <h2 id="analysisTitle">E/I傾向を解析中…</h2>
+              <p class="screen-copy" id="analysisCopy">手のひらの明るさ、コントラスト、線の密度をブラウザ内で読み取り、MBTI風の4軸へ変換しています。</p>
+              <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="resultScreen">
+        <div class="result-hero">
+          <div class="result-card">
+            <div class="result-top">
+              <div class="type-copy">
+                <div class="type-label">Your Oracle Type</div>
+                <h2 class="type-name" id="typeName">INFJ</h2>
+                <p class="type-summary" id="typeSummary"></p>
+              </div>
+              <div class="type-avatar" id="typeAvatar" data-code="INFJ" aria-hidden="true">
+                <span class="avatar-face"></span>
+                <span class="avatar-core"></span>
+                <span class="avatar-spark"></span>
+              </div>
+            </div>
+            <div class="mini-metrics">
+              <div class="metric"><b id="dominantLine">INFJ</b><span>MBTI風タイプ</span></div>
+              <div class="metric"><b id="dominantMount">直感型</b><span>強く出た傾向</span></div>
+              <div class="metric"><b id="oracleMood">内省運</b><span>今週の流れ</span></div>
+            </div>
+          </div>
+
+          <h2 class="section-title">5つのオラクル結果</h2>
+          <div class="cards" id="resultCards"></div>
+
+          <h2 class="section-title">スコア</h2>
+          <div class="score-grid" id="scoreGrid"></div>
+
+          <h2 class="section-title">4軸の読み</h2>
+          <div class="reading-grid" id="lineGrid"></div>
+
+          <h2 class="section-title">MBTI風リーディング</h2>
+          <div class="combo-list" id="comboList"></div>
+
+          <h2 class="section-title">相性ベスト3</h2>
+          <div class="compat-grid" id="compatList"></div>
+
+          <p class="disclaimer">※この診断はエンタメ目的のMBTI風オラクルです。公式MBTI診断、医学的・科学的な診断ではありません。健康、寿命、病気、死期を判断するものではありません。</p>
+
+          <div class="result-actions">
+            <button class="primary-btn" type="button" id="shareBtn">Xで結果をシェア</button>
+            <button class="secondary-btn" type="button" id="retryBtn">もう一度占う</button>
+            <button class="share-btn" type="button" id="noteBtn">このアプリの作り方を見る</button>
+          </div>
+        </div>
+      </section>
+
+      <footer>Palm MBTI Oracle AI by Haku | @ai_side_haku</footer>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const APP_URL = "https://haku-ai-os.github.io/palm-mbti-oracle/";
+      const NOTE_URL = "https://note.com/yoshi_pyjava";
+      const MAX_IMAGE_SIDE = 1200;
+
+      const $ = (id) => document.getElementById(id);
+
+      const screens = {
+        start: $("startScreen"),
+        upload: $("uploadScreen"),
+        analysis: $("analysisScreen"),
+        result: $("resultScreen")
+      };
+
+      const fileInput = $("fileInput");
+      const dropzone = $("dropzone");
+      const previewCanvas = $("previewCanvas");
+      const previewCtx = previewCanvas.getContext("2d", { willReadFrequently: true });
+      const analysisCanvas = $("analysisCanvas");
+      const analysisCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
+      const uploadStatus = $("uploadStatus");
+      const analyzeBtn = $("analyzeBtn");
+      const progressFill = $("progressFill");
+      const analysisTitle = $("analysisTitle");
+      const analysisCopy = $("analysisCopy");
+      const toast = $("toast");
+
+      let selectedImage = null;
+      let selectedFileName = "";
+      let latestReading = null;
+      let toastTimer = null;
+
+      const analysisSteps = [
+        "E/I傾向を解析中…",
+        "N/S傾向を解析中…",
+        "F/T傾向を解析中…",
+        "J/P傾向を解析中…",
+        "16タイプ候補を照合中…",
+        "相性と強みを整理中…",
+        "MBTI風オラクル結果を生成中…"
+      ];
+
+      const scoreNames = [
+        ["intuition", "直感力"],
+        ["creativity", "創造力"],
+        ["action", "行動力"],
+        ["stability", "安定力"],
+        ["empathy", "共感力"]
+      ];
+
+      const lineLabels = {
+        life: "生命線",
+        head: "知能線",
+        heart: "感情線",
+        fate: "運命線",
+        sun: "太陽線",
+        mercury: "水星線",
+        venus: "金星丘",
+        luna: "月丘"
+      };
+
+      const typeData = [
+        {
+          id: "star_creator",
+          name: "星読みクリエイター型",
+          mood: "表現運",
+          condition: (s) => s.creativity + s.intuition + s.empathy * 0.35,
+          summary: "あなたは、日常の小さな出来事から意味を見つけるのが上手なタイプです。何気ない会話、好きな景色、ふとした違和感の中から、自分らしい答えを見つけていけます。",
+          cards: {
+            personality: "静かな観察力と、ふっと降りてくる直感が同居しています。人と同じ正解を探すより、自分が心地よいと感じる選び方をしたときに魅力が強く出ます。",
+            work: "家事、勉強、毎日の役割、趣味のどれでも、少し工夫して自分らしく整える力があります。人から頼まれたことをそのままこなすだけでなく、見やすく、使いやすく、心地よく変えるのが得意です。",
+            love: "恋愛では、言葉の温度や空気感を大切にします。急展開よりも、価値観や会話のリズムが合う相手に心が開きやすいでしょう。",
+            money: "金運は、好きなものや得意なことを丁寧に扱うほど整います。衝動買いよりも、長く使えるもの、自分の気分を上げてくれるものにお金を使うと満足度が高くなります。",
+            action: "今週は、部屋の一角、スマホの写真、手帳、バッグの中などをひとつだけ整えてください。身近な場所を整えることで、気持ちにも新しい余白が生まれます。"
+          }
+        },
+        {
+          id: "intuition_driver",
+          name: "直感ドリブン型",
+          mood: "突破運",
+          condition: (s) => s.intuition + s.action + s.creativity * 0.25,
+          summary: "あなたは、考えすぎる前に本質をつかむタイプです。迷ったときほど、最初に感じた違和感や高揚感が進む方向を教えてくれます。",
+          cards: {
+            personality: "反応速度が早く、場の空気を読む力があります。細かく計画を固めるより、動きながら調整するほうが実力を出しやすいでしょう。",
+            work: "初めての場所、人との会話、予定変更のような場面で、勘の良さが出やすい人です。考え込むより、まず少し動いてみることで、自分に合う答えを見つけられます。",
+            love: "恋愛では、会った瞬間の空気やテンポを重視します。相手に合わせすぎず、心地よい距離感を言葉にすると安定します。",
+            money: "金運は、迷っていることを小さく試す姿勢から開きます。大きな買い物や決断は一呼吸置き、少額で試せるものから始めると失敗が少なくなります。",
+            action: "今週は、気になっていたことをひとつだけ試してください。新しい道具、行ったことのない店、読もうと思っていた本など、小さな初体験が運を動かします。"
+          }
+        },
+        {
+          id: "strategic_leader",
+          name: "段取り上手リーダー型",
+          mood: "整理運",
+          condition: (s) => s.action + s.stability + s.intuition * 0.2,
+          summary: "あなたは、状況を整理し、必要な順番で前へ進めるタイプです。感覚だけで動くより、勝ち筋を見つけてから力を集中させるほど結果が出ます。",
+          cards: {
+            personality: "責任感があり、混乱した場面でも軸を作れる人です。周囲から頼られやすいぶん、ひとりで抱え込みすぎないことが運を守ります。",
+            work: "学校、家庭、職場、友人関係の中で、自然と段取り役になりやすいタイプです。予定を決める、必要なものを準備する、人の意見をまとめる場面で力が出ます。",
+            love: "恋愛では、安心感と信頼を大切にします。相手の言葉だけでなく、行動の一貫性を見ることで良い関係を選べます。",
+            money: "金運は、ざっくりでも流れを見える化すると安定します。毎日細かく管理しなくても、今月使えるお金、残しておきたいお金を分けるだけで安心感が増します。",
+            action: "今週は、やることを3つに絞り、1つは今日終わらせてください。小さな完了が次のチャンスを呼びます。"
+          }
+        },
+        {
+          id: "healing_supporter",
+          name: "癒しのサポーター型",
+          mood: "対人運",
+          condition: (s) => s.empathy + s.stability + s.intuition * 0.25,
+          summary: "あなたは、人の気持ちを受け止めながら、静かに場を整えるタイプです。派手さよりも、安心して話せる雰囲気そのものが才能です。",
+          cards: {
+            personality: "共感力が高く、相手の言葉にならない疲れや迷いに気づけます。自分の回復時間を確保すると魅力が長持ちします。",
+            work: "家族、友人、同級生、同僚など、身近な人の気持ちに気づける人です。相談を聞く、場を和ませる、困っている人に手を差し伸べることで信頼が深まります。",
+            love: "恋愛では、深い信頼をゆっくり育てます。尽くしすぎる前に、自分が安心できているかを確認すると良い関係になります。",
+            money: "金運は、誰かのために使うお金と、自分を満たすお金のバランスが大切です。優しさで出費が増えやすい時は、先に自分の予算を決めておくと安心です。",
+            action: "今週は、誰かに優しくするだけでなく、自分にも同じくらい優しくしてください。温かい飲み物、早めの休息、好きな香りが運を整えます。"
+          }
+        },
+        {
+          id: "future_engineer",
+          name: "未来開拓チャレンジャー型",
+          mood: "挑戦運",
+          condition: (s) => s.creativity + s.action + s.stability * 0.45,
+          summary: "あなたは、まだ知らない世界に少しずつ手を伸ばしていくタイプです。新しい環境、新しい習慣、新しい人との出会いを通して、自分の可能性を広げていけます。",
+          cards: {
+            personality: "好奇心と行動力が同時に動きます。難しそうに見えることも、ひとつずつ分けて考えると前に進める人です。",
+            work: "勉強、家事、アルバイト、趣味、日々の用事などで、新しいやり方を取り入れるのが上手です。昔ながらの方法にこだわりすぎず、自分に合う工夫を見つけられます。",
+            love: "恋愛では、会話の中に学びや発見がある相手に惹かれやすいです。一緒に成長できる関係が心を安定させます。",
+            money: "金運は、学びや経験への使い方で伸びます。なんとなく消える出費を減らし、自分の未来が少し明るくなることにお金を向けると満足感が残ります。",
+            action: "今週は、前から気になっていたことをひとつ調べて、最初の一歩だけ動いてください。大きく変えなくても、小さな挑戦が流れを変えます。"
+          }
+        },
+        {
+          id: "sensitive_artist",
+          name: "感性アーティスト型",
+          mood: "表現運",
+          condition: (s) => s.creativity + s.empathy + s.intuition * 0.35,
+          summary: "あなたは、感情を色や言葉や空気に変換するタイプです。説明しきれない気配を形にする力があり、見る人の記憶に残る表現ができます。",
+          cards: {
+            personality: "繊細な受信力があります。外の刺激を受け取りやすいので、世界観を整えた場所で力が回復しやすいでしょう。",
+            work: "音楽、服、料理、部屋づくり、写真、文章など、感性を使うことと相性があります。評価されるためだけでなく、自分の心が動くものを選ぶほど魅力が増します。",
+            love: "恋愛では、深く共鳴できる関係を求めます。気持ちを溜め込まず、小さく言語化すると関係が柔らかくなります。",
+            money: "金運は、気分だけで買うものと、本当に心が満たされるものを見分けることで整います。安いからではなく、長く好きでいられるかを基準にすると良い流れです。",
+            action: "今週は、好きな色、音、香り、言葉をひとつ選び、身の回りに取り入れてください。心が落ち着くものが、次の行動力を連れてきます。"
+          }
+        },
+        {
+          id: "quiet_builder",
+          name: "静かな努力家型",
+          mood: "継続運",
+          condition: (s) => s.stability + s.empathy * 0.45 + s.action * 0.25,
+          summary: "あなたは、見えない場所で積み上げる力を持つタイプです。短期的な派手さよりも、淡々と続けたものがあとから大きな信頼になります。",
+          cards: {
+            personality: "落ち着きと粘り強さがあります。すぐに結果が出ない時期でも、必要な改善を続けられる人です。",
+            work: "勉強、家事、日々の役割、人付き合いの中で、コツコツ積み上げる力があります。目立つ役割でなくても、あなたが続けていることは周りの安心につながっています。",
+            love: "恋愛では、穏やかで誠実な関係を大切にします。派手な言葉より、日々の小さな行動に愛情を感じやすいでしょう。",
+            money: "金運は、無理のない習慣から強くなります。少額でも貯める、使ったものを振り返る、不要なものを手放すなど、静かな積み重ねが未来の安心になります。",
+            action: "今週は、続けたいことを1つだけ記録化してください。数字で見えるようにすると運が安定します。"
+          }
+        },
+        {
+          id: "chance_magnet",
+          name: "チャンス引き寄せ型",
+          mood: "好機運",
+          condition: (s) => averageScores(s) + balanceScore(s) * 0.9,
+          summary: "あなたは、複数の流れを自然に結びつけるタイプです。人・情報・タイミングが重なったときに、思いがけないチャンスをつかみます。",
+          cards: {
+            personality: "柔軟性があり、場に合わせて自分の役割を変えられます。偶然をただの偶然で終わらせず、次の行動につなげる力があります。",
+            work: "人との出会い、紹介、偶然の会話から流れが広がりやすいタイプです。学校、職場、地域、趣味の場などで、何気ないつながりが後から助けになります。",
+            love: "恋愛では、予想外の接点から縁が生まれやすいタイプです。自然体の会話から関係が進むことがあります。",
+            money: "金運は、人から聞いた情報や、偶然見つけたチャンスにヒントがあります。ただし勢いだけで決めず、自分に本当に必要かを一度確認すると運を味方にできます。",
+            action: "今週は、気になっていた人や場所に軽く連絡してみてください。小さな接点が次の扉になります。"
+          }
+        }
+      ];
+
+      function showScreen(name) {
+        Object.entries(screens).forEach(([key, el]) => {
+          el.classList.toggle("active", key === name);
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 3600);
+      }
+
+      function clamp(value, min = 0, max = 100) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function round(value) {
+        return Math.round(clamp(value));
+      }
+
+      function averageScores(scores) {
+        return (scores.intuition + scores.creativity + scores.action + scores.stability + scores.empathy) / 5;
+      }
+
+      function balanceScore(scores) {
+        const values = Object.values(scores);
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        const variance = values.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / values.length;
+        return clamp(100 - Math.sqrt(variance) * 4);
+      }
+
+      function seededJitter(seed, salt, range = 6) {
+        const x = Math.sin(seed * 999 + salt * 77.7) * 10000;
+        return (x - Math.floor(x) - 0.5) * range;
+      }
+
+      function signatureJitter(signature, salt, range = 36) {
+        let x = (Math.floor(signature) ^ Math.imul(salt, 2654435761)) >>> 0;
+        x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
+        x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
+        x = (x ^ (x >>> 16)) >>> 0;
+        return (x / 4294967295 - 0.5) * range;
+      }
+
+
+      function isSkinLikePixel(r, g, b) {
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const chroma = max - min;
+        const warmEnough = r > 82 && g > 42 && b > 22 && r > b * 1.08 && r >= g * 0.86;
+        const notTooRed = Math.abs(r - g) < 98;
+        const notGray = chroma > 14;
+        const notOverGreen = g < r * 1.12;
+        return warmEnough && notTooRed && notGray && notOverGreen;
+      }
+
+      function buildPalmDetection(stats) {
+        const skinRatio = stats.skinCount / stats.count;
+        const centerSkinRatio = stats.centerSkin / Math.max(1, stats.centerCount);
+        const upperSkinRatio = stats.upperSkin / Math.max(1, stats.upperCount);
+        const lowerSkinRatio = stats.lowerSkin / Math.max(1, stats.lowerCount);
+        const leftSkinRatio = stats.leftSkin / Math.max(1, stats.leftCount);
+        const rightSkinRatio = stats.rightSkin / Math.max(1, stats.rightCount);
+        const greenRatio = stats.greenCount / stats.count;
+        const veryDarkRatio = stats.veryDarkCount / stats.count;
+        const highSatRatio = stats.highSatCount / stats.count;
+        const skinEdgeAvg = stats.skinEdgeTotal / Math.max(1, stats.skinEdgeCount);
+        const fingerColumns = stats.topColumnSkin.filter((v) => v > stats.height * 0.055).length;
+        const fingerColumnRatio = fingerColumns / stats.width;
+        const sideBalance = 1 - Math.min(1, Math.abs(leftSkinRatio - rightSkinRatio) * 2.4);
+        const topBottomContinuity = 1 - Math.min(1, Math.abs(upperSkinRatio - lowerSkinRatio) * 1.9);
+        const strongPalmShape = skinRatio >= 0.22 && centerSkinRatio >= 0.22 && fingerColumnRatio >= 0.12;
+        const foodLikeObject = greenRatio > 0.028 && veryDarkRatio > 0.22;
+        const darkLimit = strongPalmShape ? 0.55 : 0.22;
+        const skinEdgeLimit = strongPalmShape ? 34 : 27;
+
+        let confidence = 0;
+        confidence += skinRatio >= 0.16 && skinRatio <= 0.78 ? 24 : -20;
+        confidence += centerSkinRatio >= 0.18 ? 20 : -18;
+        confidence += fingerColumnRatio >= 0.10 && fingerColumnRatio <= 0.68 ? 16 : -12;
+        confidence += sideBalance * 14;
+        confidence += topBottomContinuity * 10;
+        confidence += skinEdgeAvg >= 4 && skinEdgeAvg <= skinEdgeLimit ? 10 : -12;
+        confidence += strongPalmShape ? 8 : 0;
+        confidence -= greenRatio > 0.025 ? Math.min(24, greenRatio * 420) : 0;
+        confidence -= veryDarkRatio > darkLimit ? Math.min(24, (veryDarkRatio - darkLimit) * 120) : 0;
+        confidence -= highSatRatio > 0.52 ? Math.min(18, (highSatRatio - 0.52) * 80) : 0;
+
+        const reasons = [];
+        if (skinRatio < 0.16) reasons.push("肌色に近い領域が少ない");
+        if (centerSkinRatio < 0.18) reasons.push("中央に手のひららしい面が少ない");
+        if (fingerColumnRatio < 0.10) reasons.push("指のような縦方向の領域が少ない");
+        if (greenRatio > 0.025) reasons.push("手以外の強い色が多い");
+        if (veryDarkRatio > 0.20) reasons.push("暗い器や影のような領域が多い");
+        if (skinEdgeAvg > 27) reasons.push("肌領域の輪郭が細かすぎる");
+
+        return {
+          confidence: Math.round(clamp(confidence, 0, 100)),
+          isPalm: confidence >= 54 && !foodLikeObject,
+          reasons,
+          metrics: {
+            skinRatio: Math.round(skinRatio * 100),
+            centerSkinRatio: Math.round(centerSkinRatio * 100),
+            fingerColumnRatio: Math.round(fingerColumnRatio * 100),
+            greenRatio: Math.round(greenRatio * 100),
+            veryDarkRatio: Math.round(veryDarkRatio * 100),
+            skinEdgeAvg: Math.round(skinEdgeAvg),
+            strongPalmShape
+          }
+        };
+      }
+
+      function buildStars() {
+        const field = $("starfield");
+        const total = 54;
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < total; i += 1) {
+          const star = document.createElement("span");
+          star.className = "star";
+          star.style.left = `${Math.random() * 100}%`;
+          star.style.top = `${Math.random() * 100}%`;
+          star.style.setProperty("--dx", `${(Math.random() - 0.5) * 26}px`);
+          star.style.setProperty("--dur", `${5 + Math.random() * 8}s`);
+          star.style.animationDelay = `${Math.random() * -8}s`;
+          if (i % 3 === 0) {
+            star.style.background = "rgba(139, 211, 255, 0.9)";
+          }
+          if (i % 7 === 0) {
+            star.style.width = "1px";
+            star.style.height = "1px";
+          }
+          frag.appendChild(star);
+        }
+        field.appendChild(frag);
+      }
+
+      function chooseImage() {
+        fileInput.click();
+      }
+
+      function resetImage() {
+        selectedImage = null;
+        selectedFileName = "";
+        fileInput.value = "";
+        analyzeBtn.disabled = true;
+        dropzone.classList.remove("has-image");
+        uploadStatus.textContent = "まだ画像は選択されていません。";
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+      }
+
+      function loadImageFromFile(file) {
+        if (!file) {
+          showToast("画像が選択されていません。");
+          return;
+        }
+        if (!file.type || !file.type.startsWith("image/")) {
+          showToast("画像ファイルを選んでください。");
+          return;
+        }
+
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          selectedImage = img;
+          selectedFileName = file.name || "hand-image";
+          drawContainedImage(previewCanvas, previewCtx, img);
+          drawContainedImage(analysisCanvas, analysisCtx, img);
+          dropzone.classList.add("has-image");
+          analyzeBtn.disabled = false;
+          uploadStatus.textContent = `選択中: ${selectedFileName} / 端末内プレビュー完了。`;
+          showScreen("upload");
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          showToast("画像の読み込みに失敗しました。別の写真を試してください。");
+        };
+        img.src = url;
+      }
+
+      function drawContainedImage(canvas, ctx, img) {
+        const box = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(320, Math.round((box.width || 420) * dpr));
+        const height = Math.max(280, Math.round((box.height || 360) * dpr));
+        canvas.width = width;
+        canvas.height = height;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#05050a";
+        ctx.fillRect(0, 0, width, height);
+
+        const scale = Math.min(width / img.naturalWidth, height / img.naturalHeight);
+        const drawW = img.naturalWidth * scale;
+        const drawH = img.naturalHeight * scale;
+        const x = (width - drawW) / 2;
+        const y = (height - drawH) / 2;
+        ctx.drawImage(img, x, y, drawW, drawH);
+
+        const glow = ctx.createLinearGradient(0, 0, width, height);
+        glow.addColorStop(0, "rgba(199,167,255,0.12)");
+        glow.addColorStop(0.55, "rgba(139,211,255,0.04)");
+        glow.addColorStop(1, "rgba(244,213,141,0.10)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      function resizeForAnalysis(img) {
+        const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+        const width = Math.max(64, Math.round(img.naturalWidth * scale));
+        const height = Math.max(64, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, width, height);
+        return { canvas, ctx, width, height };
+      }
+
+      function analyzeImage(img) {
+        const { ctx, width, height } = resizeForAnalysis(img);
+        const data = ctx.getImageData(0, 0, width, height).data;
+        const lum = new Float32Array(width * height);
+        let sum = 0;
+        let sumSq = 0;
+        let warmSum = 0;
+        let satSum = 0;
+        let rSum = 0;
+        let gSum = 0;
+        let bSum = 0;
+        let photoSignature = 0;
+        const palmStats = {
+          count: width * height,
+          width,
+          height,
+          skinCount: 0,
+          centerSkin: 0,
+          centerCount: 0,
+          upperSkin: 0,
+          upperCount: 0,
+          lowerSkin: 0,
+          lowerCount: 0,
+          leftSkin: 0,
+          leftCount: 0,
+          rightSkin: 0,
+          rightCount: 0,
+          greenCount: 0,
+          veryDarkCount: 0,
+          highSatCount: 0,
+          skinEdgeTotal: 0,
+          skinEdgeCount: 0,
+          topColumnSkin: new Array(width).fill(0)
+        };
+
+        for (let i = 0, p = 0; i < data.length; i += 4, p += 1) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const x = p % width;
+          const y = Math.floor(p / width);
+          const xRatio = x / width;
+          const yRatio = y / height;
+          const value = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          lum[p] = value;
+          sum += value;
+          sumSq += value * value;
+          warmSum += (r - b + 255) / 510;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const pixelSat = max === 0 ? 0 : (max - min) / max;
+          satSum += pixelSat;
+          rSum += r;
+          gSum += g;
+          bSum += b;
+          if (p % 3 === 0) {
+            photoSignature = (photoSignature + ((r * 3 + g * 5 + b * 7 + x * 11 + y * 13) % 997) * ((p % 37) + 1)) % 1000003;
+          }
+
+          const skinLike = isSkinLikePixel(r, g, b);
+          const greenLike = g > r * 1.05 && g > b * 1.18 && pixelSat > 0.20 && value > 55;
+          if (skinLike) {
+            palmStats.skinCount += 1;
+            if (xRatio > 0.25 && xRatio < 0.75 && yRatio > 0.18 && yRatio < 0.82) palmStats.centerSkin += 1;
+            if (yRatio < 0.45) {
+              palmStats.upperSkin += 1;
+              palmStats.topColumnSkin[x] += 1;
+            }
+            if (yRatio > 0.55) palmStats.lowerSkin += 1;
+            if (xRatio < 0.5) palmStats.leftSkin += 1;
+            if (xRatio >= 0.5) palmStats.rightSkin += 1;
+          }
+          if (xRatio > 0.25 && xRatio < 0.75 && yRatio > 0.18 && yRatio < 0.82) palmStats.centerCount += 1;
+          if (yRatio < 0.45) palmStats.upperCount += 1;
+          if (yRatio > 0.55) palmStats.lowerCount += 1;
+          if (xRatio < 0.5) palmStats.leftCount += 1;
+          if (xRatio >= 0.5) palmStats.rightCount += 1;
+          if (greenLike) palmStats.greenCount += 1;
+          if (value < 55) palmStats.veryDarkCount += 1;
+          if (pixelSat > 0.62) palmStats.highSatCount += 1;
+        }
+
+        const count = width * height;
+        const brightness = sum / count;
+        const variance = Math.max(0, sumSq / count - brightness * brightness);
+        const contrast = Math.sqrt(variance);
+        const warm = warmSum / count;
+        const saturation = satSum / count;
+        const avgR = rSum / count;
+        const avgG = gSum / count;
+        const avgB = bSum / count;
+        const cool = clamp((avgB - avgR + 90) / 180, 0, 1);
+
+        const regions = {
+          top: { edge: 0, n: 0 },
+          middle: { edge: 0, n: 0 },
+          bottom: { edge: 0, n: 0 },
+          center: { edge: 0, n: 0 },
+          leftLower: { edge: 0, n: 0 },
+          rightLower: { edge: 0, n: 0 },
+          upperRight: { edge: 0, n: 0 },
+          right: { edge: 0, n: 0 }
+        };
+        let edgeTotal = 0;
+        let verticalTotal = 0;
+        let horizontalTotal = 0;
+        let edgeCount = 0;
+
+        for (let y = 1; y < height; y += 1) {
+          for (let x = 1; x < width; x += 1) {
+            const idx = y * width + x;
+            const dx = Math.abs(lum[idx] - lum[idx - 1]);
+            const dy = Math.abs(lum[idx] - lum[idx - width]);
+            const edge = (dx + dy) / 2;
+            edgeTotal += edge;
+            verticalTotal += dy;
+            horizontalTotal += dx;
+            edgeCount += 1;
+            const r = data[idx * 4];
+            const g = data[idx * 4 + 1];
+            const b = data[idx * 4 + 2];
+            if (isSkinLikePixel(r, g, b)) {
+              palmStats.skinEdgeTotal += edge;
+              palmStats.skinEdgeCount += 1;
+            }
+
+            const yRatio = y / height;
+            const xRatio = x / width;
+            const bucket = yRatio < 0.33 ? regions.top : yRatio < 0.66 ? regions.middle : regions.bottom;
+            bucket.edge += edge;
+            bucket.n += 1;
+
+            if (xRatio > 0.32 && xRatio < 0.68 && yRatio > 0.25 && yRatio < 0.78) {
+              regions.center.edge += edge;
+              regions.center.n += 1;
+            }
+            if (xRatio < 0.46 && yRatio > 0.48) {
+              regions.leftLower.edge += edge;
+              regions.leftLower.n += 1;
+            }
+            if (xRatio > 0.54 && yRatio > 0.48) {
+              regions.rightLower.edge += edge;
+              regions.rightLower.n += 1;
+            }
+            if (xRatio > 0.55 && yRatio < 0.46) {
+              regions.upperRight.edge += edge;
+              regions.upperRight.n += 1;
+            }
+            if (xRatio > 0.62) {
+              regions.right.edge += edge;
+              regions.right.n += 1;
+            }
+          }
+        }
+
+        const edgeAvg = edgeTotal / Math.max(1, edgeCount);
+        Object.values(regions).forEach((region) => {
+          region.value = region.edge / Math.max(1, region.n);
+        });
+
+        const seed = brightness * 0.13 + contrast * 0.31 + edgeAvg * 0.57 + warm * 19 + saturation * 23 + width * 0.001 + height * 0.002;
+        const balance = 1 - Math.min(1, Math.abs(regions.top.value - regions.bottom.value) / 42);
+        const verticalBias = verticalTotal / Math.max(1, verticalTotal + horizontalTotal);
+        const palm = buildPalmDetection(palmStats);
+
+        const rawScores = {
+          intuition: 45 + regions.top.value * 1.35 + cool * 18 + saturation * 16 + seededJitter(seed, 1),
+          creativity: 42 + contrast * 0.48 + saturation * 30 + regions.upperRight.value * 0.92 + seededJitter(seed, 2),
+          action: 40 + regions.center.value * 1.25 + edgeAvg * 0.7 + verticalBias * 13 + seededJitter(seed, 3),
+          stability: 44 + balance * 25 + (100 - Math.min(100, contrast)) * 0.23 + Math.max(0, 170 - Math.abs(brightness - 145)) * 0.05 + seededJitter(seed, 4),
+          empathy: 43 + regions.bottom.value * 1.1 + warm * 18 + regions.rightLower.value * 0.48 + seededJitter(seed, 5)
+        };
+
+        const scores = Object.fromEntries(Object.entries(rawScores).map(([key, value]) => [key, round(value)]));
+
+        const linePowers = {
+          life: round(44 + regions.leftLower.value * 1.2 + warm * 17 + balance * 14 + seededJitter(seed, 6)),
+          head: round(43 + regions.middle.value * 1.3 + contrast * 0.36 + horizontalTotal / Math.max(1, edgeCount) * 0.35 + seededJitter(seed, 7)),
+          heart: round(42 + regions.top.value * 1.15 + warm * 14 + regions.right.value * 0.28 + seededJitter(seed, 8)),
+          fate: round(40 + regions.center.value * 1.28 + verticalBias * 22 + contrast * 0.22 + seededJitter(seed, 9)),
+          sun: round(38 + regions.upperRight.value * 1.16 + saturation * 25 + contrast * 0.18 + seededJitter(seed, 10)),
+          mercury: round(39 + regions.right.value * 1.08 + edgeAvg * 0.42 + seededJitter(seed, 11)),
+          venus: round(41 + regions.leftLower.value * 0.9 + warm * 24 + brightness * 0.08 + seededJitter(seed, 12)),
+          luna: round(41 + regions.rightLower.value * 0.96 + cool * 20 + saturation * 14 + seededJitter(seed, 13))
+        };
+
+        return {
+          scores,
+          linePowers,
+          features: {
+            brightness: round(brightness / 2.55),
+            contrast: round(contrast),
+            edge: round(edgeAvg * 2.2),
+            warmth: round(warm * 100),
+            saturation: round(saturation * 100),
+            balance: round(balance * 100),
+            signature: photoSignature
+          },
+          palm
+        };
+      }
+
+      function chooseType(scores) {
+        return typeData
+          .map((type) => ({ type, value: type.condition(scores) }))
+          .sort((a, b) => b.value - a.value)[0].type;
+      }
+
+      function strongestKey(object) {
+        return Object.entries(object).sort((a, b) => b[1] - a[1])[0][0];
+      }
+
+      function strengthWord(value) {
+        if (value >= 84) return "とても強い";
+        if (value >= 70) return "しっかり出ている";
+        if (value >= 56) return "穏やかに出ている";
+        return "これから育つ";
+      }
+
+      function buildLineReadings(reading) {
+        const lp = reading.linePowers;
+        const s = reading.scores;
+        return [
+          {
+            name: "生命線",
+            text: `${strengthWord(lp.life)}印象。ここでは寿命ではなく、日々を動かす土台のエネルギーとして読みます。${lp.life >= 72 ? "小さな行動を続けるほど運が太くなります。" : "休み方を整えると行動運が戻りやすい流れです。"}`
+          },
+          {
+            name: "知能線",
+            text: `${strengthWord(lp.head)}印象。思考の輪郭、判断、才能の使い方を示します。${s.creativity > s.stability ? "ひらめきを自分なりの言葉や行動に変える力があります。" : "情報を整理して、落ち着いた答えを出す力があります。"}`
+          },
+          {
+            name: "感情線",
+            text: `${strengthWord(lp.heart)}印象。愛情表現や対人感度の象徴です。${s.empathy >= 72 ? "人の感情を受け取り、安心感を返す力が出ています。" : "距離感を大切にしながら、必要な人と深くつながるタイプです。"}`
+          },
+          {
+            name: "運命線",
+            text: `${strengthWord(lp.fate)}印象。これからの方向性や転機を示す線として読みます。${s.action >= 70 ? "自分で流れを作っていく実行運が出ています。" : "流れを待つより、選択肢を1つ絞ると前へ進みます。"}`
+          },
+          {
+            name: "太陽線",
+            text: `${strengthWord(lp.sun)}印象。魅力、表現、周囲からの注目の象徴です。${lp.sun >= 70 ? "あなたらしさが人に伝わりやすい流れがあります。" : "服装、言葉、姿勢など見せ方を整えることで魅力が育ちます。"}`
+          },
+          {
+            name: "水星線",
+            text: `${strengthWord(lp.mercury)}印象。言葉、会話、伝える力の象徴です。${lp.mercury >= 70 ? "説明、相談、気持ちを伝える場面で強みが出ます。" : "短い言葉で素直に伝える練習がチャンス運を上げます。"}`
+          },
+          {
+            name: "金星丘",
+            text: `${strengthWord(lp.venus)}印象。温かさ、魅力、包容力を示します。${lp.venus >= 72 ? "人に安心感を渡せる柔らかい魅力があります。" : "自分を満たす時間を増やすと対人運が整います。"}`
+          },
+          {
+            name: "月丘",
+            text: `${strengthWord(lp.luna)}印象。想像力、直感、物語性を示します。${lp.luna >= 72 ? "目に見えない空気を読むセンスが強く出ています。" : "気になった景色や言葉を記録すると直感が育ちます。"}`
+          }
+        ];
+      }
+
+      function buildCombos(reading) {
+        const lp = reading.linePowers;
+        const combos = [];
+
+        const add = (score, title, text) => combos.push({ score, title, text });
+
+        add(lp.head + lp.fate, "知能線 × 運命線", "考えたことを現実の行動へ落とし込む組み合わせ。予定を立てる、学びを続ける、暮らしを整えるような場面で力が出ます。");
+        add(lp.heart + lp.mercury, "感情線 × 水星線", "人の気持ちを言葉にする組み合わせ。家族や友人との会話、相談、手紙やメッセージで魅力が伝わりやすい流れです。");
+        add(lp.life + lp.fate, "生命線 × 運命線", "動きながら道を作る組み合わせ。完璧な準備より、小さく始めて継続するほど流れが強くなります。");
+        add(lp.sun + lp.fate, "太陽線 × 運命線", "あなたらしさが流れを変える組み合わせ。無理に目立とうとしなくても、好きなことや得意なことを続けるほど周囲に伝わります。");
+        add(lp.venus + lp.luna, "金星丘 × 月丘", "温かさと想像力が重なる組み合わせ。人をほっとさせる言葉、優しい雰囲気、思いやりのある行動で運が開きます。");
+        add(lp.head + lp.sun, "知能線 × 太陽線", "考える力と美意識が並ぶ組み合わせ。選ぶ言葉、服、部屋づくり、趣味の表現などにあなたらしいセンスが出ます。");
+
+        return combos.sort((a, b) => b.score - a.score).slice(0, 3);
+      }
+
+      function buildReading(analysis) {
+        const type = chooseType(analysis.scores);
+        const dominantLineKey = strongestKey({
+          life: analysis.linePowers.life,
+          head: analysis.linePowers.head,
+          heart: analysis.linePowers.heart,
+          fate: analysis.linePowers.fate,
+          sun: analysis.linePowers.sun,
+          mercury: analysis.linePowers.mercury
+        });
+        const dominantMountKey = strongestKey({
+          venus: analysis.linePowers.venus,
+          luna: analysis.linePowers.luna,
+          sun: analysis.linePowers.sun,
+          mercury: analysis.linePowers.mercury
+        });
+
+        return {
+          ...analysis,
+          type,
+          dominantLineKey,
+          dominantMountKey,
+          lineReadings: buildLineReadings(analysis),
+          combos: buildCombos(analysis)
+        };
+      }
+
+      scoreNames.length = 0;
+      scoreNames.push(
+        ["e", "外向 E"],
+        ["n", "直感 N"],
+        ["f", "感情 F"],
+        ["j", "計画 J"]
+      );
+
+      const mbtiTypes = {
+        INFJ: {
+          name: "INFJさん",
+          label: "静かな導き手",
+          mood: "内省運",
+          summary: "あなたはINFJさんです。人の気持ちや場の空気を深く読み取りながら、自分の中にある理想を大切にするタイプです。目立つために動くよりも、誰かの心を軽くしたり、意味のあることを静かに育てたりすると、本来の魅力が強く出ます。",
+          cards: {
+            personality: "表面上は穏やかでも、内側には強い信念があります。何となく違和感を覚えたことを放っておけず、時間をかけて本質を考える人です。人に合わせることもできますが、本当に大切な価値観は簡単に曲げません。",
+            work: "人の悩みを整理すること、長期的に誰かを支えること、言葉や雰囲気で安心感を作ることに向いています。先生、相談役、文章、福祉、教育、企画、占い、カウンセリング的な役割と相性が良いでしょう。",
+            love: "恋愛では、浅い会話よりも心の奥に触れる関係を求めます。相手の小さな変化に気づける一方で、気を使いすぎて疲れることもあります。安心して本音を話せる相手を選ぶと、長く穏やかな関係になりやすいです。",
+            money: "金運は、焦って増やすよりも、意味のある使い方を選ぶことで整います。人のために使いすぎる傾向が出たら、自分の回復や学びにも予算を残すことが開運になります。",
+            action: "今週は、ひとりで落ち着ける時間を30分だけ作ってください。頭の中で気になっていることを紙に書き出すと、次に進むべき方向が見えやすくなります。"
+          }
+        },
+        INFP: {
+          name: "INFPさん",
+          label: "夢見る調停者",
+          mood: "感性運",
+          summary: "あなたはINFPさんです。自分の心が動くものをとても大切にし、人の痛みや優しさにも敏感なタイプです。正しさだけでなく、そこに気持ちがあるか、納得できるかを大事にします。",
+          cards: {
+            personality: "想像力が豊かで、心の中に自分だけの世界を持っています。無理に明るく振る舞うより、安心できる場所でゆっくり本音を出すほど魅力が伝わります。",
+            work: "文章、音楽、絵、写真、物語、子どもや人の心に関わることと相性があります。競争よりも、自分の価値観を形にできる環境で力を発揮します。",
+            love: "恋愛では、心のつながりをとても重視します。言葉の優しさ、相手の誠実さ、無理をしなくても一緒にいられる感覚が大切です。",
+            money: "金運は気分に左右されやすいところがあります。心が疲れている時の衝動買いを減らし、長く好きでいられるものを選ぶと安定します。",
+            action: "今週は、好きな言葉や写真を集めてください。心が温まるものをそばに置くことで、あなたらしい判断が戻ってきます。"
+          }
+        },
+        INTJ: {
+          name: "INTJさん",
+          label: "未来を描く設計者",
+          mood: "構想運",
+          summary: "あなたはINTJさんです。物事を長い目で見て、どうすればもっと良くなるかを考えるタイプです。周りに流されるより、自分の中で納得できる道筋を見つけた時に強くなります。",
+          cards: {
+            personality: "冷静に見られやすいですが、内側ではかなり深く考えています。感情に振り回されにくく、無駄を減らして本当に必要なことへ集中する力があります。",
+            work: "計画、研究、分析、改善、長期目標のある勉強や活動に向いています。ひとりで集中できる時間があるほど、質の高い答えを出せます。",
+            love: "恋愛では、勢いよりも信頼と尊敬を重視します。自分の時間を大切にしながら、深く理解し合える相手と相性が良いでしょう。",
+            money: "金運は、長期的な計画で育ちます。安さよりも価値、流行よりも必要性を見極めることで、無駄な出費を減らせます。",
+            action: "今週は、半年後の自分が楽になる予定をひとつ決めてください。小さな準備が、未来の安心につながります。"
+          }
+        },
+        INTP: {
+          name: "INTPさん",
+          label: "考える探究者",
+          mood: "発見運",
+          summary: "あなたはINTPさんです。なぜそうなるのか、仕組みや理由を知りたくなるタイプです。人に急かされるより、自分のペースで考えを深めると本領を発揮します。",
+          cards: {
+            personality: "自由な思考を大切にします。会話中でも頭の中では別の可能性を考えていることがあり、ひとつの答えに決めつけない柔軟さがあります。",
+            work: "調べること、考えること、仕組みを理解すること、問題の原因を見つけることに向いています。興味がある分野では驚くほど深く集中できます。",
+            love: "恋愛では、感情表現が控えめに見えることがありますが、心の中では相手をよく観察しています。知的な会話や自然体でいられる時間が大切です。",
+            money: "金運は、興味への投資と無計画な出費の差を見分けると整います。調べて納得してから買うほど満足度が高くなります。",
+            action: "今週は、気になる疑問をひとつ深掘りしてください。調べたことを短くまとめると、頭の中がすっきりします。"
+          }
+        },
+        ENFJ: {
+          name: "ENFJさん",
+          label: "心を照らす主人公",
+          mood: "対人運",
+          summary: "あなたはENFJさんです。人の良いところを見つけ、場の空気を前向きにする力があります。自分ひとりの成功より、周りと一緒に良くなっていくことに喜びを感じやすいタイプです。",
+          cards: {
+            personality: "人の感情に気づきやすく、自然と周囲を励ます役になりやすいです。頼られることが多いぶん、自分の気持ちを後回しにしすぎないことが大切です。",
+            work: "教えること、まとめること、誰かの成長を支えることに向いています。学校、家庭、職場、コミュニティの中で、人をつなぐ役割が光ります。",
+            love: "恋愛では、相手を喜ばせることに一生懸命になれる人です。ただし尽くしすぎると疲れるため、対等に支え合える関係が幸運を呼びます。",
+            money: "金運は、人付き合いや贈り物で出費が増えやすい傾向があります。大切な人のためのお金と、自分を守るお金を分けると安定します。",
+            action: "今週は、誰かを励ます言葉をひとつ届けてください。同時に、自分にも同じくらい優しい言葉をかけると運が整います。"
+          }
+        },
+        ENFP: {
+          name: "ENFPさん",
+          label: "可能性を広げる冒険家",
+          mood: "好奇心運",
+          summary: "あなたはENFPさんです。新しい出会い、面白そうな話、まだ見ぬ可能性に心が動きやすいタイプです。自由な発想と人懐っこさで、周りに明るい流れを作れます。",
+          cards: {
+            personality: "感情表現が豊かで、興味のあることには一気に熱が入ります。退屈なルールに縛られるより、選択肢がある環境で魅力が出ます。",
+            work: "人と話すこと、アイデアを広げること、新しい体験を共有することに向いています。イベント、接客、発信、企画、教育、創作などで輝きやすいです。",
+            love: "恋愛では、一緒に笑えること、刺激があること、本音で話せることを大切にします。束縛が強い関係より、自由と安心の両方がある関係が合います。",
+            money: "金運は、楽しいことへの出費が増えやすいタイプです。ワクワクを大切にしつつ、使う前に一度だけ優先順位を見ると運を守れます。",
+            action: "今週は、気になっていた場所や人に軽く触れてみてください。小さな寄り道が、新しいチャンスにつながります。"
+          }
+        },
+        ENTJ: {
+          name: "ENTJさん",
+          label: "道を切り開く指揮官",
+          mood: "前進運",
+          summary: "あなたはENTJさんです。目標を決めると、そこへ向かう手順を考え、周りを巻き込みながら進める力があります。迷い続けるより、まず方向を決めることで運が動きます。",
+          cards: {
+            personality: "決断力があり、曖昧な状態を長く続けるのが苦手です。強く見られることもありますが、本当は物事を良くしたい気持ちが原動力です。",
+            work: "リーダー役、計画づくり、交渉、目標達成に向いています。大きな課題でも、分解して順番を決めることで前へ進めます。",
+            love: "恋愛では、尊敬できる相手、対等に意見を言い合える相手に惹かれやすいです。相手のペースを待つ余白を持つと関係が柔らかくなります。",
+            money: "金運は、目的を決めると強くなります。何のために貯めるのか、何に使うと未来が良くなるのかを明確にすると無駄が減ります。",
+            action: "今週は、先延ばしにしていた決断をひとつだけ進めてください。全部ではなく、一番大事な一手で十分です。"
+          }
+        },
+        ENTP: {
+          name: "ENTPさん",
+          label: "ひらめきの発明家",
+          mood: "発想運",
+          summary: "あなたはENTPさんです。常識を少しずらして、新しい見方を見つけるのが得意なタイプです。会話や偶然の刺激から、面白いアイデアがどんどん生まれます。",
+          cards: {
+            personality: "頭の回転が早く、変化や議論を楽しめます。同じことの繰り返しより、工夫や改善の余地がある場面で元気になります。",
+            work: "アイデア出し、問題解決、人との会話、企画、交渉、面白い仕組みづくりに向いています。自由度が高いほど魅力が出ます。",
+            love: "恋愛では、楽しい会話や刺激を求めます。相手をからかいすぎず、時にはまっすぐ気持ちを伝えると信頼が深まります。",
+            money: "金運は、面白そうなものに反応しやすいぶん、出費が散らばりやすいです。買う前に『これは来月も使うか』と確認すると整います。",
+            action: "今週は、ひとつの悩みに対して別の解決策を3つ書き出してください。遊び心のある案ほど、突破口になるかもしれません。"
+          }
+        },
+        ISFJ: {
+          name: "ISFJさん",
+          label: "やさしい守り人",
+          mood: "安心運",
+          summary: "あなたはISFJさんです。身近な人や場所を大切にし、日々の小さな気配りで安心を作るタイプです。派手に目立たなくても、あなたの存在に助けられている人がいます。",
+          cards: {
+            personality: "誠実で、約束や習慣を大切にします。相手のために動ける優しさがありますが、我慢しすぎると疲れが溜まりやすいので注意が必要です。",
+            work: "サポート、整理、記録、ケア、日々の管理に向いています。家庭、学校、職場などで、細やかな気づきが信頼につながります。",
+            love: "恋愛では、穏やかで安心できる関係を求めます。言葉より行動で愛情を示すことが多く、誠実な相手と長く続きやすいです。",
+            money: "金運は堅実です。必要なものをきちんと選べる一方で、人のために使いすぎることがあるため、自分用の予算も確保しましょう。",
+            action: "今週は、自分のためだけの小さなご褒美を用意してください。誰かのためだけでなく、自分を満たすことも開運です。"
+          }
+        },
+        ISFP: {
+          name: "ISFPさん",
+          label: "感性で生きるアーティスト",
+          mood: "癒し運",
+          summary: "あなたはISFPさんです。自分の感覚や好き嫌いを大切にし、無理なく自然体でいたいタイプです。言葉で説明するより、雰囲気や行動で気持ちを表すことが多いでしょう。",
+          cards: {
+            personality: "やわらかく見えて、内側にははっきりした美意識があります。人に押しつけられるより、自分で選べる環境で心が元気になります。",
+            work: "手を動かすこと、飾ること、味わうこと、音や色や形に関わることに向いています。細やかな感覚を活かせる場面で魅力が出ます。",
+            love: "恋愛では、自然体でいられることを重視します。言葉数が多くなくても、一緒にいる時間の心地よさで愛情を感じます。",
+            money: "金運は、気分を上げるものに使うと満足度が高いタイプです。ただしその時の気持ちで買いすぎないよう、少し時間を置くと良い選択ができます。",
+            action: "今週は、好きな香り、服、音楽、食べ物のどれかを丁寧に選んでください。五感を満たすことが運を整えます。"
+          }
+        },
+        ISTJ: {
+          name: "ISTJさん",
+          label: "信頼される管理者",
+          mood: "安定運",
+          summary: "あなたはISTJさんです。決めたことをきちんと守り、現実的に物事を進めるタイプです。派手な変化よりも、確かな積み重ねによって信頼と成果を作ります。",
+          cards: {
+            personality: "責任感が強く、いい加減なことが苦手です。感情に流されにくく、必要なことを淡々と進められる強さがあります。",
+            work: "管理、記録、確認、勉強、資格、家計、ルールのある作業に向いています。正確さが求められる場面で力を発揮します。",
+            love: "恋愛では、誠実さと安定感を大切にします。大げさな表現より、約束を守る、時間を作るなどの行動に愛情が表れます。",
+            money: "金運は安定型です。計画的に貯める力があり、無理な冒険よりも着実な管理で安心を増やせます。",
+            action: "今週は、ひとつだけ生活のルールを整えてください。睡眠、家計、予定、持ち物のどれかを見直すと運が安定します。"
+          }
+        },
+        ISTP: {
+          name: "ISTPさん",
+          label: "静かな職人",
+          mood: "実感運",
+          summary: "あなたはISTPさんです。頭で考えるだけでなく、実際に触って試しながら理解するタイプです。必要以上に群れず、自分のペースで動ける時に力が出ます。",
+          cards: {
+            personality: "落ち着いていて、問題が起きても慌てにくい人です。感情を大きく出すより、状況を見て実用的な一手を選びます。",
+            work: "手作業、道具、修理、運転、スポーツ、実験、現場感のあることに向いています。理屈よりも実感で覚えるほど上達します。",
+            love: "恋愛では、束縛されすぎない距離感を大切にします。言葉よりも、一緒に何かをする時間の中で自然に愛情が育ちます。",
+            money: "金運は、必要なものにはしっかり使い、不要なものは切ると整います。機能性や使いやすさを基準にすると失敗が少ないでしょう。",
+            action: "今週は、壊れたもの、散らかった場所、気になっていた道具をひとつ整えてください。手を動かすことで気分も整います。"
+          }
+        },
+        ESFJ: {
+          name: "ESFJさん",
+          label: "みんなを包む領事官",
+          mood: "交流運",
+          summary: "あなたはESFJさんです。人とのつながりを大切にし、周囲が安心して過ごせるように気を配れるタイプです。場を明るくし、人を支える力があります。",
+          cards: {
+            personality: "親しみやすく、相手の反応をよく見ています。誰かの役に立てると嬉しい反面、期待に応えようとしすぎることもあります。",
+            work: "接客、教育、サポート、調整、家庭や地域のまとめ役に向いています。人のために動く場面で、自然と信頼が集まります。",
+            love: "恋愛では、わかりやすい愛情表現や安心感を大切にします。相手にも同じくらい気持ちを返してもらえる関係が合います。",
+            money: "金運は、人付き合いに関する出費が増えやすいです。交際費を悪いものと考えず、予算を決めて楽しむと安定します。",
+            action: "今週は、大切な人に短い連絡をしてみてください。感謝や近況を伝えることで、人間関係の運が温まります。"
+          }
+        },
+        ESFP: {
+          name: "ESFPさん",
+          label: "場を明るくするエンターテイナー",
+          mood: "人気運",
+          summary: "あなたはESFPさんです。今この瞬間を楽しみ、周りの空気を明るくするタイプです。笑顔、リアクション、行動力が人を惹きつけます。",
+          cards: {
+            personality: "人と一緒に過ごすことで元気が出やすく、楽しいことを見つける力があります。考えすぎるより、まず体験してみるほうが合っています。",
+            work: "人前に出ること、接客、イベント、表現、身体を動かすこと、楽しい空間づくりに向いています。明るさそのものが才能です。",
+            love: "恋愛では、楽しい時間や素直な愛情表現を大切にします。感情がそのまま出やすいので、嬉しいことも不安なことも早めに伝えると安定します。",
+            money: "金運は楽しい予定や欲しいものに流れやすいタイプです。使う楽しさを残しつつ、先に残すお金を分けると安心できます。",
+            action: "今週は、心から笑える予定をひとつ入れてください。楽しい時間が、次のやる気を連れてきます。"
+          }
+        },
+        ESTJ: {
+          name: "ESTJさん",
+          label: "頼れる幹部",
+          mood: "実行運",
+          summary: "あなたはESTJさんです。現実的に物事を進め、必要なことをきちんと形にするタイプです。曖昧なままにせず、役割や手順を整えることで周囲を支えます。",
+          cards: {
+            personality: "責任感と実行力があります。言うべきことをはっきり言える強さがあり、周りから頼られやすいでしょう。",
+            work: "リーダー役、管理、運営、家計、スケジュール、現実的な判断に向いています。やることを明確にすると一気に進められます。",
+            love: "恋愛では、誠実で安定した関係を求めます。相手にも責任感を求めやすいので、少し柔らかい言葉を添えると関係が温まります。",
+            money: "金運は計画性で伸びます。目標額や期限を決めると強く、無駄な出費を見つけて改善する力もあります。",
+            action: "今週は、予定表や家計、持ち物をひとつ整理してください。見える化するほど、行動運が強まります。"
+          }
+        },
+        ESTP: {
+          name: "ESTPさん",
+          label: "流れをつかむ起業家",
+          mood: "勝負運",
+          summary: "あなたはESTPさんです。目の前のチャンスを素早くつかみ、動きながら状況を変えていくタイプです。考えすぎて止まるより、まず試すことで運が開きます。",
+          cards: {
+            personality: "行動力があり、変化に強い人です。退屈な環境より、動きがある場所や人と関わる場面でエネルギーが上がります。",
+            work: "交渉、販売、スポーツ、イベント、現場対応、短期集中の課題に向いています。反応の速さと度胸が強みです。",
+            love: "恋愛では、テンポの良さや一緒に楽しめる感覚を重視します。刺激だけでなく、相手の安心感も大切にすると長続きします。",
+            money: "金運は勢いで動きやすいタイプです。チャンスに強い一方で、即決の買い物は一晩置くと失敗が減ります。",
+            action: "今週は、気になっていることを小さく体験してください。見るだけ、聞くだけ、試すだけでも流れが変わります。"
+          }
+        }
+      };
+
+      const mbtiVisuals = {
+        INFJ: { colors: ["#8f7cff", "#8bd3ff", "#f4d58d"], compat: [["ENFP", "明るさと直感が響き合い、INFJの深い考えを自然に外へ連れ出してくれる相性です。"], ["ENTP", "新しい視点をくれる相手。INFJの理想に、ENTPの発想力が風を入れてくれます。"], ["INFP", "繊細さを理解し合える相性。言葉にしにくい気持ちも、静かに共有しやすい組み合わせです。"]] },
+        INFP: { colors: ["#b58cff", "#ff9fd6", "#f4d58d"], compat: [["ENFJ", "INFPの想いを受け止め、外の世界へ優しくつないでくれる相性です。"], ["INFJ", "深い感性をわかり合いやすく、無理に明るくしなくても安心できる関係です。"], ["ENTP", "INFPの世界を広げてくれる相手。少し違う視点が、眠っていた可能性を開きます。"]] },
+        INTJ: { colors: ["#5e73ff", "#9f7cff", "#8bd3ff"], compat: [["ENFP", "INTJの計画性に、ENFPの自由な可能性が加わる相性です。"], ["ENTP", "知的な刺激が強く、会話から新しい構想が生まれやすい組み合わせです。"], ["INFJ", "未来への視点が近く、静かに深いテーマを共有できる相性です。"]] },
+        INTP: { colors: ["#6ddcff", "#8f9bff", "#f4d58d"], compat: [["ENTJ", "INTPのアイデアを現実へ進める力をくれる相性です。"], ["ENFJ", "考えすぎた時に、人との温度を思い出させてくれる相手です。"], ["ENTP", "知的な遊び心が合いやすく、話しているうちに発見が増える組み合わせです。"]] },
+        ENFJ: { colors: ["#c27cff", "#70e1c8", "#f4d58d"], compat: [["INFP", "ENFJの包容力とINFPの純粋な感性が響き合う、心の深い相性です。"], ["INTP", "ENFJが人の温度を、INTPが冷静な視点を与え合える補完関係です。"], ["ISFP", "ENFJの明るさとISFPの自然体な感性が合い、穏やかに惹かれ合いやすい相性です。"]] },
+        ENFP: { colors: ["#ff86c8", "#8bd3ff", "#ffe27a"], compat: [["INTJ", "ENFPの可能性を、INTJが現実的な道筋へ整えてくれる相性です。"], ["INFJ", "直感同士が響きやすく、明るさと深さのバランスが取れる組み合わせです。"], ["ISTJ", "自由なENFPに安定感を与えてくれる相手。違いが学びになります。"]] },
+        ENTJ: { colors: ["#806bff", "#ffb86b", "#f4d58d"], compat: [["INTP", "ENTJの実行力とINTPの思考力が組み合わさり、物事を大きく動かせる相性です。"], ["INFP", "ENTJの強さに、INFPの優しさが深みを与えてくれる組み合わせです。"], ["ENFP", "行動力と発想力が合わさり、刺激的に前へ進める相性です。"]] },
+        ENTP: { colors: ["#67e8f9", "#c084fc", "#fde68a"], compat: [["INFJ", "ENTPの発想力とINFJの洞察力が重なり、深く面白い会話が生まれます。"], ["INTJ", "互いに知的刺激を与え合い、未来の構想を広げられる相性です。"], ["INFP", "ENTPが世界を広げ、INFPが意味を与える、発見の多い組み合わせです。"]] },
+        ISFJ: { colors: ["#8bd3ff", "#9ef4c8", "#f4d58d"], compat: [["ESTP", "ISFJの安心感とESTPの行動力が補い合う相性です。"], ["ESFP", "やさしい日常に楽しさを連れてきてくれる相手です。"], ["ENFP", "ISFJの安定感に、ENFPの明るい刺激が加わる組み合わせです。"]] },
+        ISFP: { colors: ["#9ef4c8", "#ff9fd6", "#f4d58d"], compat: [["ENFJ", "ISFPの感性をENFJが優しく引き出してくれる相性です。"], ["ESFJ", "安心感と温かさが合いやすく、日常を大切にできる関係です。"], ["ESTJ", "違いは大きいですが、現実面を支えてくれる補完関係になりやすいです。"]] },
+        ISTJ: { colors: ["#8fa8ff", "#8bd3ff", "#f4d58d"], compat: [["ENFP", "ISTJの安定感に、ENFPの自由な風が入る相性です。"], ["ESFP", "現実的なISTJに、楽しい体験を増やしてくれる相手です。"], ["ISFJ", "価値観が近く、穏やかで信頼を積み重ねやすい組み合わせです。"]] },
+        ISTP: { colors: ["#70e1c8", "#8fa8ff", "#f4d58d"], compat: [["ESFJ", "ISTPの静かな実行力を、ESFJが人とのつながりへ広げてくれる相性です。"], ["ENFJ", "ISTPの自然体をENFJが温かく受け止める補完関係です。"], ["ESTP", "行動感覚が近く、一緒に体験することで距離が縮まりやすいです。"]] },
+        ESFJ: { colors: ["#f4d58d", "#9ef4c8", "#ff9fd6"], compat: [["ISTP", "ESFJの温かさとISTPの落ち着きが補い合う相性です。"], ["ISFP", "やさしさと感性が合いやすく、穏やかな時間を作れる組み合わせです。"], ["ESTJ", "現実的な支え合いができ、日常の安心感を作りやすい相性です。"]] },
+        ESFP: { colors: ["#ff9f7a", "#ff70c8", "#ffe27a"], compat: [["ISTJ", "ESFPの楽しさにISTJの安定感が加わり、バランスが取りやすい相性です。"], ["ISFJ", "ISFJの優しさがESFPの明るさを安心して受け止めてくれます。"], ["ESTP", "テンポが合いやすく、一緒に動くほど楽しい組み合わせです。"]] },
+        ESTJ: { colors: ["#f4d58d", "#8fa8ff", "#ffb86b"], compat: [["ISFP", "ESTJの現実力とISFPの感性が補い合う相性です。"], ["ESFJ", "生活感覚や責任感が合いやすく、安定した関係を作れます。"], ["ISTJ", "堅実さが近く、目標や日常の管理で協力しやすい組み合わせです。"]] },
+        ESTP: { colors: ["#ffb86b", "#67e8f9", "#f4d58d"], compat: [["ISFJ", "ESTPの行動力をISFJの安心感が支えてくれる相性です。"], ["INFJ", "違いが大きいからこそ、視野を広げ合える補完関係です。"], ["ESFP", "楽しむテンポが合いやすく、行動するほど仲が深まりやすい相性です。"]] }
+      };
+
+      function axisLabel(value, left, right) {
+        return value >= 50 ? `${left}寄り` : `${right}寄り`;
+      }
+
+      function strongerAxis(axes) {
+        const items = [
+          { key: "e", name: axes.e >= 50 ? "外向 E" : "内向 I", strength: Math.abs(axes.e - 50) },
+          { key: "n", name: axes.n >= 50 ? "直感 N" : "現実 S", strength: Math.abs(axes.n - 50) },
+          { key: "f", name: axes.f >= 50 ? "感情 F" : "思考 T", strength: Math.abs(axes.f - 50) },
+          { key: "j", name: axes.j >= 50 ? "計画 J" : "柔軟 P", strength: Math.abs(axes.j - 50) }
+        ];
+        return items.sort((a, b) => b.strength - a.strength)[0].name;
+      }
+
+      function calcMbtiAxes(analysis) {
+        const s = analysis.scores;
+        const lp = analysis.linePowers;
+        const f = analysis.features;
+        const signature = f.signature || 0;
+        const seed = f.brightness * 0.37 + f.contrast * 0.41 + f.edge * 0.53 + f.warmth * 0.29 + f.saturation * 0.31 + f.balance * 0.23 + (signature % 997) * 0.017;
+        const e = round(50
+          + (s.action - s.stability) * 0.16
+          + (lp.mercury - lp.life) * 0.12
+          + (f.brightness - 55) * 0.10
+          + (f.edge - 48) * 0.07
+          + signatureJitter(signature, 31, 54)
+          + seededJitter(seed, 21, 8));
+        const n = round(50
+          + (s.intuition - s.stability) * 0.15
+          + (s.creativity - s.action) * 0.10
+          + (lp.luna - lp.fate) * 0.12
+          + (f.saturation - 48) * 0.07
+          + signatureJitter(signature, 32, 54)
+          + seededJitter(seed, 22, 8));
+        const feeling = round(50
+          + (s.empathy - s.action) * 0.15
+          + (lp.heart - lp.head) * 0.13
+          + (lp.venus - lp.mercury) * 0.10
+          + (f.warmth - 55) * 0.07
+          + signatureJitter(signature, 33, 54)
+          + seededJitter(seed, 23, 8));
+        const j = round(50
+          + (s.stability - s.creativity) * 0.16
+          + (lp.fate - lp.sun) * 0.12
+          + (f.balance - 58) * 0.12
+          + (lp.head - lp.mercury) * 0.07
+          + signatureJitter(signature, 34, 54)
+          + seededJitter(seed, 24, 8));
+        return { e, n, f: feeling, j };
+      }
+
+      function mbtiCodeFromAxes(axes) {
+        return `${axes.e >= 50 ? "E" : "I"}${axes.n >= 50 ? "N" : "S"}${axes.f >= 50 ? "F" : "T"}${axes.j >= 50 ? "J" : "P"}`;
+      }
+
+      function buildLineReadings(reading) {
+        const axes = reading.axes;
+        return [
+          {
+            name: `E/I: ${axisLabel(axes.e, "外向 E", "内向 I")}`,
+            text: axes.e >= 50
+              ? "人と話したり、外の刺激を受けたりすることでエネルギーが動きやすい傾向です。思ったことを言葉にしながら考えがまとまる場面も多いでしょう。"
+              : "ひとりで考える時間や、落ち着いた環境でエネルギーが回復しやすい傾向です。急かされるより、自分のペースで整理した時に本音が見えてきます。"
+          },
+          {
+            name: `N/S: ${axisLabel(axes.n, "直感 N", "現実 S")}`,
+            text: axes.n >= 50
+              ? "目の前の事実だけでなく、そこから広がる可能性や意味を読むタイプです。未来のイメージ、アイデア、雰囲気の変化に敏感です。"
+              : "現実的な情報、経験、具体的な手順を大切にするタイプです。ふわっとした話より、実際に役立つことや確かめられることに安心感があります。"
+          },
+          {
+            name: `F/T: ${axisLabel(axes.f, "感情 F", "思考 T")}`,
+            text: axes.f >= 50
+              ? "判断するときに、人の気持ちや関係性を大切にしやすい傾向です。正しさだけでなく、相手がどう感じるかまで自然に考えられます。"
+              : "判断するときに、筋道や公平さを大切にしやすい傾向です。感情に流されすぎず、何が合理的かを見つける力があります。"
+          },
+          {
+            name: `J/P: ${axisLabel(axes.j, "計画 J", "柔軟 P")}`,
+            text: axes.j >= 50
+              ? "予定や段取りが見えていると安心して力を出せるタイプです。やることを整理し、ひとつずつ完了させるほど運が安定します。"
+              : "その場の流れを見ながら柔軟に動けるタイプです。最初から全部決めるより、余白を残しておくことでチャンスを拾いやすくなります。"
+          }
+        ];
+      }
+
+      function buildCombos(reading) {
+        const code = reading.code;
+        const axes = reading.axes;
+        const type = reading.type;
+        const energy = axes.e >= 50 ? "人と会う時間で運が動きます。ただし予定を詰め込みすぎると疲れるため、楽しい予定と休む時間をセットにすると整います。" : "ひとりで整える時間が運の土台です。静かな場所で考えをまとめてから人と会うと、言葉に説得力が出ます。";
+        const decision = axes.f >= 50 ? "大切な選択では、損得だけでなく『自分と相手の心が落ち着くか』を見てください。優しさは強みですが、我慢しすぎないことも同じくらい大切です。" : "大切な選択では、感情を一度横に置き、条件や事実を整理すると強みが出ます。ただし正しさだけで押し切らず、相手の気持ちを一言添えると運が上がります。";
+        const weekly = axes.j >= 50 ? "今週は、予定・持ち物・お金・連絡のどれかを整理すると流れが良くなります。見える化するほど安心感が増します。" : "今週は、いつもと違う選択をひとつ試すと流れが良くなります。予定を少し空けておくと、面白い偶然を拾えます。";
+        return [
+          { title: `${code}の基本テーマ`, text: `${type.label}としてのあなたは、自分らしさを大切にしながらも、周囲との関わり方に独自のリズムを持っています。無理に別タイプになろうとせず、強みを日常の中で小さく使うことが開運です。` },
+          { title: "人間関係のヒント", text: energy },
+          { title: "判断のヒント", text: decision },
+          { title: "今週の開運ポイント", text: weekly }
+        ].slice(0, 3);
+      }
+
+      function buildReading(analysis) {
+        const axes = calcMbtiAxes(analysis);
+        const code = mbtiCodeFromAxes(axes);
+        const type = mbtiTypes[code] || mbtiTypes.INFJ;
+        const visual = mbtiVisuals[code] || mbtiVisuals.INFJ;
+        lineLabels.mbtiCode = code;
+        lineLabels.axis = strongerAxis(axes);
+        return {
+          ...analysis,
+          code,
+          axes,
+          scores: axes,
+          type,
+          visual,
+          compatibility: visual.compat,
+          dominantLineKey: "mbtiCode",
+          dominantMountKey: "axis",
+          lineReadings: buildLineReadings({ axes, type, code }),
+          combos: buildCombos({ axes, type, code })
+        };
+      }
+
+      function createTextElement(tag, className, text) {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        el.textContent = text;
+        return el;
+      }
+
+      function renderResults(reading) {
+        $("typeName").textContent = reading.code;
+        $("typeSummary").textContent = reading.type.summary;
+        $("dominantLine").textContent = lineLabels[reading.dominantLineKey];
+        $("dominantMount").textContent = lineLabels[reading.dominantMountKey];
+        $("oracleMood").textContent = reading.type.mood;
+
+        const avatar = $("typeAvatar");
+        if (avatar) {
+          avatar.dataset.code = reading.code;
+          avatar.style.setProperty("--avatar-a", reading.visual.colors[0]);
+          avatar.style.setProperty("--avatar-b", reading.visual.colors[1]);
+          avatar.style.setProperty("--avatar-c", reading.visual.colors[2]);
+        }
+
+        const cardData = [
+          ["性格タイプ", reading.type.cards.personality],
+          ["向いていること", reading.type.cards.work],
+          ["恋愛傾向", reading.type.cards.love],
+          ["金運・日常運", reading.type.cards.money],
+          ["今週のラッキーアクション", reading.type.cards.action]
+        ];
+        const resultCards = $("resultCards");
+        resultCards.textContent = "";
+        cardData.forEach(([title, text]) => {
+          const card = document.createElement("article");
+          card.className = "oracle-card";
+          card.appendChild(createTextElement("h3", "", title));
+          card.appendChild(createTextElement("p", "", text));
+          resultCards.appendChild(card);
+        });
+
+        const scoreGrid = $("scoreGrid");
+        scoreGrid.textContent = "";
+        scoreNames.forEach(([key, label]) => {
+          const card = document.createElement("article");
+          card.className = "score-card";
+
+          const row = document.createElement("div");
+          row.className = "score-row";
+          row.appendChild(createTextElement("span", "score-name", label));
+          row.appendChild(createTextElement("span", "score-value", `${reading.scores[key]}点`));
+
+          const bar = document.createElement("div");
+          bar.className = "bar";
+          const fill = document.createElement("div");
+          fill.className = "bar-fill";
+          fill.dataset.width = `${reading.scores[key]}%`;
+          bar.appendChild(fill);
+
+          card.appendChild(row);
+          card.appendChild(bar);
+          scoreGrid.appendChild(card);
+        });
+
+        const lineGrid = $("lineGrid");
+        lineGrid.textContent = "";
+        reading.lineReadings.forEach((item) => {
+          const card = document.createElement("article");
+          card.className = "line-reading";
+          card.appendChild(createTextElement("strong", "", item.name));
+          card.appendChild(createTextElement("span", "", item.text));
+          lineGrid.appendChild(card);
+        });
+
+        const comboList = $("comboList");
+        comboList.textContent = "";
+        reading.combos.forEach((item) => {
+          const card = document.createElement("article");
+          card.className = "combo-item";
+          const title = document.createElement("b");
+          title.textContent = item.title;
+          card.appendChild(title);
+          card.appendChild(document.createTextNode(`: ${item.text}`));
+          comboList.appendChild(card);
+        });
+
+        const compatList = $("compatList");
+        compatList.textContent = "";
+        reading.compatibility.forEach(([code, text], index) => {
+          const card = document.createElement("article");
+          card.className = "compat-card";
+          card.appendChild(createTextElement("div", "compat-rank", `Best ${index + 1}`));
+          card.appendChild(createTextElement("div", "compat-type", `${code}さん`));
+          card.appendChild(createTextElement("p", "", text));
+          compatList.appendChild(card);
+        });
+
+        requestAnimationFrame(() => {
+          document.querySelectorAll(".bar-fill").forEach((fill) => {
+            fill.style.width = fill.dataset.width;
+          });
+        });
+      }
+
+      function runAnalysis() {
+        if (!selectedImage) {
+          showToast("先に手の写真を選んでください。");
+          return;
+        }
+        let preparedAnalysis;
+        try {
+          preparedAnalysis = analyzeImage(selectedImage);
+        } catch (error) {
+          showToast("画像解析に失敗しました。明るい場所で撮った手のひら写真を選び直してください。");
+          return;
+        }
+        if (!preparedAnalysis.palm || !preparedAnalysis.palm.isPalm) {
+          const reasonText = preparedAnalysis.palm && preparedAnalysis.palm.reasons.length
+            ? `理由: ${preparedAnalysis.palm.reasons.slice(0, 2).join(" / ")}`
+            : "手のひららしい特徴が不足しています。";
+          uploadStatus.textContent = `手のひらを認識できませんでした。明るい場所で、指先から手首まで手のひら全体が写る写真を選んでください。${reasonText}`;
+          analyzeBtn.disabled = true;
+          showToast("手のひらを認識できませんでした。別の写真を選び直してください。");
+          showScreen("upload");
+          return;
+        }
+        drawContainedImage(analysisCanvas, analysisCtx, selectedImage);
+        progressFill.style.width = "0%";
+        analysisTitle.textContent = analysisSteps[0];
+        analysisCopy.textContent = "手のひらの明るさ、コントラスト、線の密度をブラウザ内で読み取り、MBTI風の4軸へ変換しています。";
+        showScreen("analysis");
+
+        let step = 0;
+        const totalDuration = 4200;
+        const startedAt = performance.now();
+
+        const tick = (now) => {
+          const progress = clamp(((now - startedAt) / totalDuration) * 100);
+          progressFill.style.width = `${progress}%`;
+          const nextStep = Math.min(analysisSteps.length - 1, Math.floor((progress / 100) * analysisSteps.length));
+          if (nextStep !== step) {
+            step = nextStep;
+            analysisTitle.textContent = analysisSteps[step];
+            analysisCopy.textContent = [
+              "写真ごとの光と影から、外向/内向のエネルギー傾向を読んでいます。",
+              "線の密度とコントラストから、直感/現実の受け取り方を照合しています。",
+              "色味と上部の流れから、感情/思考の判断傾向を整えています。",
+              "全体の安定感から、計画/柔軟の行動スタイルを確認しています。",
+              "4軸の組み合わせから、16タイプの結果文を生成しています。"
+            ][step % 5];
+          }
+
+          if (progress < 100) {
+            requestAnimationFrame(tick);
+            return;
+          }
+
+          latestReading = buildReading(preparedAnalysis);
+          renderResults(latestReading);
+          showScreen("result");
+        };
+
+        requestAnimationFrame(tick);
+      }
+
+      function fallbackAnalysis() {
+        return {
+          scores: {
+            intuition: 72,
+            creativity: 76,
+            action: 68,
+            stability: 70,
+            empathy: 74
+          },
+          linePowers: {
+            life: 71,
+            head: 76,
+            heart: 73,
+            fate: 70,
+            sun: 74,
+            mercury: 69,
+            venus: 72,
+            luna: 75
+          },
+          features: {
+            brightness: 60,
+            contrast: 48,
+            edge: 64,
+            warmth: 58,
+            saturation: 45,
+            balance: 72
+          }
+        };
+      }
+
+      function shareToX() {
+        if (!latestReading) {
+          showToast("結果を作成してからシェアできます。");
+          return;
+        }
+        const text = [
+          "AI手相MBTIオラクルで占ってみた",
+          `私のタイプは「${latestReading.type.name}」でした。`,
+          "",
+          "手のひら写真からAI風にMBTIタイプ・性格・人間関係・恋愛傾向を診断できます。",
+          APP_URL,
+          "",
+          "#AI手相MBTI #MBTI診断 #ChatGPTで作れる"
+        ].join("\n");
+        const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+
+      function openNote() {
+        window.open(NOTE_URL, "_blank", "noopener,noreferrer");
+      }
+
+      function scrollToTips() {
+        $("tips").scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      function bindEvents() {
+        $("pickFromHero").addEventListener("click", () => {
+          showScreen("upload");
+          setTimeout(chooseImage, 140);
+        });
+        $("howToBtn").addEventListener("click", scrollToTips);
+        $("pickImageBtn").addEventListener("click", chooseImage);
+        $("repickBtn").addEventListener("click", chooseImage);
+        $("analyzeBtn").addEventListener("click", runAnalysis);
+        $("retryBtn").addEventListener("click", () => {
+          resetImage();
+          showScreen("upload");
+        });
+        $("shareBtn").addEventListener("click", shareToX);
+        $("noteBtn").addEventListener("click", openNote);
+
+        fileInput.addEventListener("change", (event) => {
+          const file = event.target.files && event.target.files[0];
+          loadImageFromFile(file);
+        });
+
+        window.addEventListener("resize", () => {
+          if (selectedImage) {
+            drawContainedImage(previewCanvas, previewCtx, selectedImage);
+            drawContainedImage(analysisCanvas, analysisCtx, selectedImage);
+          }
+        });
+      }
+
+      buildStars();
+      bindEvents();
+    })();
+  </script>
+</body>
+</html>
